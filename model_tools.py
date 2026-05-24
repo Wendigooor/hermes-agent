@@ -767,12 +767,18 @@ def handle_function_call(
     # Coerce string arguments to their schema-declared types (e.g. "42"→42)
     function_args = coerce_tool_args(function_name, function_args)
 
-    # Tool-input repair layer — validate-then-repair (FM1, FM5, FM6)
+    # Tool-input repair layer — validate-then-repair (FM1, FM3-FM6)
+    # Import is outside try to fail fast if the module itself is broken.
+    from tools.repair_layer import repair_tool_args
     try:
-        from tools.repair_layer import repair_tool_args
-        function_args = repair_tool_args(function_name, function_args)
+        repaired = repair_tool_args(function_name, function_args)
+        if not isinstance(repaired, dict):
+            logger.error("repair_tool_args returned %s, expected dict — skipping", type(repaired).__name__)
+        else:
+            function_args = repaired
     except Exception as _repair_err:
-        logger.warning("repair_tool_args failed for %s: %s", function_name, _repair_err)
+        logger.error("repair_tool_args failed for %s: %s — fail-closed", function_name, _repair_err)
+        raise
 
     try:
         if function_name in _AGENT_LOOP_TOOLS:
