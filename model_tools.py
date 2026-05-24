@@ -767,6 +767,13 @@ def handle_function_call(
     # Coerce string arguments to their schema-declared types (e.g. "42"→42)
     function_args = coerce_tool_args(function_name, function_args)
 
+    # Tool-input repair layer — validate-then-repair (FM1, FM5, FM6)
+    try:
+        from tools.repair_layer import repair_tool_args
+        function_args = repair_tool_args(function_name, function_args)
+    except Exception as _repair_err:
+        logger.warning("repair_tool_args failed for %s: %s", function_name, _repair_err)
+
     try:
         if function_name in _AGENT_LOOP_TOOLS:
             return json.dumps({"error": f"{function_name} must be handled by the agent loop"})
